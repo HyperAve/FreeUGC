@@ -1,0 +1,225 @@
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+
+-- Create remote event
+local remoteEvent = ReplicatedStorage:FindFirstChild("WHEEL") or Instance.new("RemoteEvent")
+remoteEvent.Name = "WHEEL"
+remoteEvent.Parent = ReplicatedStorage
+
+-- Create GUI
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "RemoteFirerGUI"
+screenGui.ResetOnSpawn = false
+
+-- Main Frame (draggable)
+local mainFrame = Instance.new("Frame")
+mainFrame.Name = "MainFrame"
+mainFrame.Size = UDim2.new(0, 200, 0, 100)
+mainFrame.Position = UDim2.new(0.5, -100, 0.5, -50)
+mainFrame.AnchorPoint = Vector2.new(0.5, 0.5)
+mainFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+mainFrame.BorderSizePixel = 0
+mainFrame.BackgroundTransparency = 0.2
+mainFrame.Active = true
+mainFrame.Draggable = true
+
+-- UI Corner
+local uiCorner = Instance.new("UICorner")
+uiCorner.CornerRadius = UDim.new(0, 10)
+uiCorner.Parent = mainFrame
+
+-- Title
+local title = Instance.new("TextLabel")
+title.Name = "Title"
+title.Text = "Auto Spin"
+title.Size = UDim2.new(1, 0, 0.2, 0)
+title.Position = UDim2.new(0, 0, 0, 0)
+title.BackgroundTransparency = 1
+title.TextColor3 = Color3.fromRGB(255, 255, 255)
+title.Font = Enum.Font.GothamBold
+title.TextSize = 16
+title.Parent = mainFrame
+
+-- Toggle Button
+local toggleButton = Instance.new("TextButton")
+toggleButton.Name = "ToggleButton"
+toggleButton.Text = "Auto Spin (Off)"
+toggleButton.Size = UDim2.new(0.8, 0, 0.4, 0)
+toggleButton.Position = UDim2.new(0.1, 0, 0.4, 0)
+toggleButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0) -- Red for off
+toggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+toggleButton.Font = Enum.Font.Gotham
+toggleButton.TextSize = 14
+local toggleCorner = Instance.new("UICorner")
+toggleCorner.CornerRadius = UDim.new(0, 8)
+toggleCorner.Parent = toggleButton
+toggleButton.Parent = mainFrame
+
+-- Close Button (X)
+local closeButton = Instance.new("TextButton")
+closeButton.Name = "CloseButton"
+closeButton.Text = "X"
+closeButton.Size = UDim2.new(0.15, 0, 0.15, 0)
+closeButton.Position = UDim2.new(0.03, 0, 0.03, 0)
+closeButton.BackgroundTransparency = 1
+closeButton.TextColor3 = Color3.fromRGB(255, 100, 100)
+closeButton.Font = Enum.Font.GothamBold
+closeButton.TextSize = 18
+local closeCorner = Instance.new("UICorner")
+closeCorner.CornerRadius = UDim.new(1, 0)
+closeCorner.Parent = closeButton
+closeButton.Parent = mainFrame
+
+-- Minimize Button
+local minimizeButton = Instance.new("TextButton")
+minimizeButton.Name = "MinimizeButton"
+minimizeButton.Text = "-"
+minimizeButton.Size = UDim2.new(0.15, 0, 0.15, 0)
+minimizeButton.Position = UDim2.new(0.85, 0, 0.03, 0)
+minimizeButton.BackgroundTransparency = 1
+minimizeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+minimizeButton.Font = Enum.Font.GothamBold
+minimizeButton.TextSize = 18
+local minimizeCorner = Instance.new("UICorner")
+minimizeCorner.CornerRadius = UDim.new(1, 0)
+minimizeCorner.Parent = minimizeButton
+minimizeButton.Parent = mainFrame
+
+-- Restore Button (hidden initially)
+local restoreButton = Instance.new("TextButton")
+restoreButton.Name = "RestoreButton"
+restoreButton.Text = "+"
+restoreButton.TextSize = 24
+restoreButton.Size = UDim2.new(1, 0, 1, 0)
+restoreButton.Position = UDim2.new(0, 0, 0, 0)
+restoreButton.BackgroundTransparency = 1
+restoreButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+restoreButton.Font = Enum.Font.GothamBold
+restoreButton.TextYAlignment = Enum.TextYAlignment.Center
+restoreButton.TextXAlignment = Enum.TextXAlignment.Center
+restoreButton.Visible = false
+restoreButton.Active = false -- Prevent button from blocking drag
+local restoreCorner = Instance.new("UICorner")
+restoreCorner.CornerRadius = UDim.new(1, 0)
+restoreCorner.Parent = restoreButton
+restoreButton.Parent = mainFrame
+
+-- State variables
+local isFiring = false
+local fireConnection = nil
+local isMinimized = false
+local dragStartPos
+local dragStartFramePos
+
+-- Drag function for minimized state
+local function startDrag(input)
+    dragStartPos = input.Position
+    dragStartFramePos = mainFrame.Position
+    input.Changed:Connect(function()
+        if input.UserInputState == Enum.UserInputState.End then
+            dragStartPos = nil
+        end
+    end)
+end
+
+local function updateDrag(input)
+    if not dragStartPos then return end
+    local delta = input.Position - dragStartPos
+    mainFrame.Position = UDim2.new(
+        dragStartFramePos.X.Scale,
+        dragStartFramePos.X.Offset + delta.X,
+        dragStartFramePos.Y.Scale,
+        dragStartFramePos.Y.Offset + delta.Y
+    )
+end
+
+-- Close function
+local function closeGUI()
+    screenGui:Destroy()
+end
+
+closeButton.MouseButton1Click:Connect(closeGUI)
+
+-- Minimize/Restore function
+local function toggleMinimize()
+    isMinimized = not isMinimized
+    
+    if isMinimized then
+        -- Minimized state
+        mainFrame.Size = UDim2.new(0, 40, 0, 40)
+        title.Visible = false
+        toggleButton.Visible = false
+        minimizeButton.Visible = false
+        closeButton.Visible = false
+        restoreButton.Visible = true
+        mainFrame.Active = true -- Ensure frame is draggable when minimized
+    else
+        -- Restored state
+        mainFrame.Size = UDim2.new(0, 200, 0, 100)
+        title.Visible = true
+        toggleButton.Visible = true
+        minimizeButton.Visible = true
+        closeButton.Visible = true
+        restoreButton.Visible = false
+    end
+end
+
+minimizeButton.MouseButton1Click:Connect(toggleMinimize)
+restoreButton.MouseButton1Click:Connect(toggleMinimize)
+
+-- Input connections for dragging
+restoreButton.InputBegan:Connect(startDrag)
+restoreButton.InputChanged:Connect(updateDrag)
+
+-- Make the entire minimized frame draggable
+mainFrame.InputBegan:Connect(function(input)
+    if isMinimized and input.UserInputType == Enum.UserInputType.MouseButton1 then
+        startDrag(input)
+    end
+end)
+
+mainFrame.InputChanged:Connect(function(input)
+    if isMinimized and input.UserInputType == Enum.UserInputType.MouseMovement then
+        updateDrag(input)
+    end
+end)
+
+-- Toggle firing
+local function toggleFiring()
+    isFiring = not isFiring
+    
+    if isFiring then
+        toggleButton.Text = "Auto Spin (On)"
+        toggleButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0) -- Green for on
+        fireConnection = RunService.Heartbeat:Connect(function()
+            remoteEvent:FireServer()
+        end)
+    else
+        toggleButton.Text = "Auto Spin (Off)"
+        toggleButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0) -- Red for off
+        if fireConnection then
+            fireConnection:Disconnect()
+            fireConnection = nil
+        end
+    end
+end
+
+toggleButton.MouseButton1Click:Connect(toggleFiring)
+
+-- Cleanup on respawn
+player.CharacterAdded:Connect(function()
+    if isFiring and fireConnection then
+        fireConnection:Disconnect()
+        isFiring = false
+        toggleButton.Text = "Auto Spin (Off)"
+        toggleButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+    end
+end)
+
+mainFrame.Parent = screenGui
+screenGui.Parent = playerGui
